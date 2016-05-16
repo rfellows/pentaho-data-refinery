@@ -37,6 +37,9 @@ import org.pentaho.di.core.annotations.Step;
 import org.pentaho.di.core.database.DatabaseMeta;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleXMLException;
+import org.pentaho.di.core.injection.Injection;
+import org.pentaho.di.core.injection.InjectionDeep;
+import org.pentaho.di.core.injection.InjectionSupported;
 import org.pentaho.di.core.xml.XMLHandler;
 import org.pentaho.di.i18n.BaseMessages;
 import org.pentaho.di.repository.ObjectId;
@@ -63,6 +66,7 @@ import java.util.UUID;
 /**
  * @author Rowell Belen
  */
+@InjectionSupported( localizationPrefix = "AnnotateStream.Injection.", groups = "")
 @Step( id = "FieldMetadataAnnotation", image = "ModelAnnotation.svg",
     i18nPackageName = "org.pentaho.di.trans.steps.annotation", name = "ModelAnnotation.TransName",
     description = "ModelAnnotation.TransDescription",
@@ -72,10 +76,13 @@ public class ModelAnnotationMeta extends BaseStepMeta implements StepMetaInterfa
 
   private static Class<?> PKG = ModelAnnotationMeta.class; // for i18n purposes, needed by Translator2!!
 
+  @Injection( name = "SHARED_DIMENSION")
   private boolean sharedDimension; // need to know this before loading from the MetaStore
 
+  @InjectionDeep
   private ModelAnnotationGroup modelAnnotations;
 
+  @Injection( name = "MODEL_ANNOTATION_CATEGORY" )
   private String modelAnnotationCategory;
 
   private String targetOutputStep;
