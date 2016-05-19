@@ -22,25 +22,97 @@
 
 package org.pentaho.di.trans.steps.annotation;
 
+import org.apache.commons.collections.CollectionUtils;
+import org.pentaho.agilebi.modeler.models.annotations.CreateAttribute;
+import org.pentaho.agilebi.modeler.models.annotations.CreateMeasure;
+import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotation;
 import org.pentaho.di.core.exception.KettleException;
+import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.trans.step.StepInjectionMetaEntry;
 import org.pentaho.di.trans.step.StepMetaInjectionInterface;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * @author Rowell Belen
  */
 public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface {
+  private final ModelAnnotationMeta meta;
+
+  public ModelAnnotationMetaInjection( ModelAnnotationMeta meta ) {
+    this.meta = meta;
+  }
+
   @Override public List<StepInjectionMetaEntry> getStepInjectionMetadataEntries() throws KettleException {
-    return null;
+    List<StepInjectionMetaEntry> entries = new ArrayList<>();
+
+    entries.add( new StepInjectionMetaEntry(
+      "MODEL_ANNOTATION_CATEGORY",
+      meta.getModelAnnotationCategory(),
+      ValueMetaInterface.TYPE_STRING,
+      "category" ) );
+
+    entries.add( new StepInjectionMetaEntry(
+      "MODEL_ANNOTATION_GROUP_NAME",
+      meta.getModelAnnotations().getName(),
+      ValueMetaInterface.TYPE_STRING,
+      "group name" ) );
+
+
+    // list of annotations
+    List<StepInjectionMetaEntry> annotationEntries = new ArrayList<>();
+    for ( int i = 0; i < meta.getModelAnnotations().size(); i++ ) {
+
+      ModelAnnotation modelAnnotation = meta.getModelAnnotations().get( i );
+
+      // add a 'grouping' entry
+      StepInjectionMetaEntry container = new StepInjectionMetaEntry( modelAnnotation.getType().name(), null, ValueMetaInterface.TYPE_NONE, "annotation type" );
+      entries.add( container );
+
+      // list of data for the specific annotation
+      List<StepInjectionMetaEntry> annotationValues = new ArrayList<>();
+
+      switch ( modelAnnotation.getType() ) {
+        case CREATE_ATTRIBUTE:
+          CreateAttribute attribute = (CreateAttribute) modelAnnotation.getAnnotation();
+          annotationValues.add( new StepInjectionMetaEntry( "FIELD", attribute.getField(), ValueMetaInterface.TYPE_STRING, "Field" ) );
+          annotationValues.add( new StepInjectionMetaEntry( "DIMENSION", attribute.getDimension(), ValueMetaInterface.TYPE_STRING, "Dimension" ) );
+          annotationValues.add( new StepInjectionMetaEntry( "HIERARCHY", attribute.getHierarchy(), ValueMetaInterface.TYPE_STRING, "Hierarchy" ) );
+          annotationValues.add( new StepInjectionMetaEntry( "LEVEL", attribute.getLevel(), ValueMetaInterface.TYPE_STRING, "Level" ) );
+          break;
+        case CREATE_MEASURE:
+          CreateMeasure measure = (CreateMeasure) modelAnnotation.getAnnotation();
+          annotationValues.add( new StepInjectionMetaEntry( "FIELD", measure.getField(), ValueMetaInterface.TYPE_STRING, "Field" ) );
+          annotationValues.add( new StepInjectionMetaEntry( "AGGREGATION_TYPE", measure.getAggregateType().name(), ValueMetaInterface.TYPE_STRING, "Type of aggregation" ) );
+          break;
+        default:
+          break;
+      }
+
+      if ( CollectionUtils.isNotEmpty( annotationValues ) ) {
+        // create an intermediate entry to add the actual injection entries to. the legacy MDI support is quirky in how it
+        // expects this data to be structured.
+        StepInjectionMetaEntry ma =
+          new StepInjectionMetaEntry( modelAnnotation.getType().name(), null, ValueMetaInterface.TYPE_NONE, "annotation type" );
+
+        // add the real entries as details to this intermediate entry
+        ma.getDetails().addAll( annotationValues );
+
+        container.getDetails().add( ma );
+      }
+
+    }
+
+    return entries;
   }
 
   @Override public void injectStepMetadataEntries( List<StepInjectionMetaEntry> metadata ) throws KettleException {
-
+    // TODO
   }
 
   @Override public List<StepInjectionMetaEntry> extractStepMetadataEntries() throws KettleException {
+    // TODO
     return null;
   }
 }

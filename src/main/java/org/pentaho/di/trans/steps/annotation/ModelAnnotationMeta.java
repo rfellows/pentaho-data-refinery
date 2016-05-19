@@ -48,6 +48,7 @@ import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.step.StepMetaChangeListenerInterface;
+import org.pentaho.di.trans.step.StepMetaInjectionInterface;
 import org.pentaho.di.trans.step.StepMetaInterface;
 import org.pentaho.metadata.model.concept.types.DataType;
 import org.pentaho.metastore.api.IMetaStore;
@@ -459,5 +460,9 @@ public class ModelAnnotationMeta extends BaseStepMeta implements StepMetaInterfa
         setTargetOutputStep( newMeta.getName() );
       }
     }
+  }
+
+  @Override public StepMetaInjectionInterface getStepMetaInjectionInterface() {
+    return new ModelAnnotationMetaInjection( this );
   }
 }
