@@ -26,6 +26,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.pentaho.agilebi.modeler.models.annotations.CreateAttribute;
 import org.pentaho.agilebi.modeler.models.annotations.CreateMeasure;
 import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotation;
+import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotationGroup;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.trans.step.StepInjectionMetaEntry;
@@ -76,14 +77,14 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
       switch ( modelAnnotation.getType() ) {
         case CREATE_ATTRIBUTE:
           CreateAttribute attribute = (CreateAttribute) modelAnnotation.getAnnotation();
-          annotationValues.add( new StepInjectionMetaEntry( "FIELD", attribute.getField(), ValueMetaInterface.TYPE_STRING, "Field" ) );
+          annotationValues.add( new StepInjectionMetaEntry( "FIELD_NAME", attribute.getField(), ValueMetaInterface.TYPE_STRING, "Field" ) );
           annotationValues.add( new StepInjectionMetaEntry( "DIMENSION", attribute.getDimension(), ValueMetaInterface.TYPE_STRING, "Dimension" ) );
           annotationValues.add( new StepInjectionMetaEntry( "HIERARCHY", attribute.getHierarchy(), ValueMetaInterface.TYPE_STRING, "Hierarchy" ) );
           annotationValues.add( new StepInjectionMetaEntry( "LEVEL", attribute.getLevel(), ValueMetaInterface.TYPE_STRING, "Level" ) );
           break;
         case CREATE_MEASURE:
           CreateMeasure measure = (CreateMeasure) modelAnnotation.getAnnotation();
-          annotationValues.add( new StepInjectionMetaEntry( "FIELD", measure.getField(), ValueMetaInterface.TYPE_STRING, "Field" ) );
+          annotationValues.add( new StepInjectionMetaEntry( "FIELD_NAME", measure.getField(), ValueMetaInterface.TYPE_STRING, "Field" ) );
           annotationValues.add( new StepInjectionMetaEntry( "AGGREGATION_TYPE", measure.getAggregateType().name(), ValueMetaInterface.TYPE_STRING, "Type of aggregation" ) );
           break;
         default:
@@ -108,7 +109,38 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
   }
 
   @Override public void injectStepMetadataEntries( List<StepInjectionMetaEntry> metadata ) throws KettleException {
-    // TODO
+    // if the model annotation group is already available, use it. otherwise create a new one
+    ModelAnnotationGroup modelAnnotationGroup = meta.getModelAnnotations() == null ? new ModelAnnotationGroup() : meta.getModelAnnotations();
+
+    metadata.forEach( stepInjectionMetaEntry -> {
+      String key = stepInjectionMetaEntry.getKey();
+      String value = stepInjectionMetaEntry.getValue() == null ? null : (String) stepInjectionMetaEntry.getValue();
+      switch ( key ) {
+        case "MODEL_ANNOTATION_CATEGORY":
+          meta.setModelAnnotationCategory( value );
+          break;
+        case "MODEL_ANNOTATION_GROUP_NAME":
+          modelAnnotationGroup.setName( value );
+          break;
+        case "CREATE_ATTRIBUTE":
+          List<StepInjectionMetaEntry> details = stepInjectionMetaEntry.getDetails().get( 0 ).getDetails();
+          for ( StepInjectionMetaEntry detail : details ) {
+            if ( "FIELD_NAME".equals( detail.getKey() ) ) {
+              CreateAttribute ca = new CreateAttribute();
+              ca.setName( detail.getValue().toString() );
+              ModelAnnotation<CreateAttribute> modelAnnotation = new ModelAnnotation<CreateAttribute>();
+              modelAnnotation.setName( ca.getName() );
+              modelAnnotation.setAnnotation( ca );
+            }
+          }
+          break;
+        default:
+          System.out.println( key + " = " + value );
+      }
+    } );
+
+    meta.setModelAnnotations( modelAnnotationGroup );
+
   }
 
   @Override public List<StepInjectionMetaEntry> extractStepMetadataEntries() throws KettleException {
