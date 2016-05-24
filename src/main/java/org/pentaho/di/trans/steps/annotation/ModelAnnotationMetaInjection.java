@@ -22,18 +22,20 @@
 
 package org.pentaho.di.trans.steps.annotation;
 
-import org.apache.commons.collections.CollectionUtils;
 import org.pentaho.agilebi.modeler.models.annotations.CreateAttribute;
 import org.pentaho.agilebi.modeler.models.annotations.CreateMeasure;
 import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotation;
 import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotationGroup;
+import org.pentaho.agilebi.modeler.models.annotations.ModelProperty;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.trans.step.StepInjectionMetaEntry;
 import org.pentaho.di.trans.step.StepMetaInjectionInterface;
+import org.pentaho.metadata.model.concept.types.AggregationType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * @author Rowell Belen
@@ -61,51 +63,52 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
       "group name" ) );
 
 
-    // list of annotations
-    List<StepInjectionMetaEntry> annotationEntries = new ArrayList<>();
-    for ( int i = 0; i < meta.getModelAnnotations().size(); i++ ) {
-
-      ModelAnnotation modelAnnotation = meta.getModelAnnotations().get( i );
-
-      // add a 'grouping' entry
-      StepInjectionMetaEntry container = new StepInjectionMetaEntry( modelAnnotation.getType().name(), null, ValueMetaInterface.TYPE_NONE, "annotation type" );
-      entries.add( container );
-
-      // list of data for the specific annotation
-      List<StepInjectionMetaEntry> annotationValues = new ArrayList<>();
-
-      switch ( modelAnnotation.getType() ) {
-        case CREATE_ATTRIBUTE:
-          CreateAttribute attribute = (CreateAttribute) modelAnnotation.getAnnotation();
-          annotationValues.add( new StepInjectionMetaEntry( "FIELD_NAME", attribute.getField(), ValueMetaInterface.TYPE_STRING, "Field" ) );
-          annotationValues.add( new StepInjectionMetaEntry( "DIMENSION", attribute.getDimension(), ValueMetaInterface.TYPE_STRING, "Dimension" ) );
-          annotationValues.add( new StepInjectionMetaEntry( "HIERARCHY", attribute.getHierarchy(), ValueMetaInterface.TYPE_STRING, "Hierarchy" ) );
-          annotationValues.add( new StepInjectionMetaEntry( "LEVEL", attribute.getLevel(), ValueMetaInterface.TYPE_STRING, "Level" ) );
-          break;
-        case CREATE_MEASURE:
-          CreateMeasure measure = (CreateMeasure) modelAnnotation.getAnnotation();
-          annotationValues.add( new StepInjectionMetaEntry( "FIELD_NAME", measure.getField(), ValueMetaInterface.TYPE_STRING, "Field" ) );
-          annotationValues.add( new StepInjectionMetaEntry( "AGGREGATION_TYPE", measure.getAggregateType().name(), ValueMetaInterface.TYPE_STRING, "Type of aggregation" ) );
-          break;
-        default:
-          break;
-      }
-
-      if ( CollectionUtils.isNotEmpty( annotationValues ) ) {
-        // create an intermediate entry to add the actual injection entries to. the legacy MDI support is quirky in how it
-        // expects this data to be structured.
-        StepInjectionMetaEntry ma =
-          new StepInjectionMetaEntry( modelAnnotation.getType().name(), null, ValueMetaInterface.TYPE_NONE, "annotation type" );
-
-        // add the real entries as details to this intermediate entry
-        ma.getDetails().addAll( annotationValues );
-
-        container.getDetails().add( ma );
-      }
-
-    }
+    entries.add( createMeasuresMdiGroup() );
+    entries.add( createAttributesMdiGroup() );
 
     return entries;
+  }
+
+  protected StepInjectionMetaEntry createMeasuresMdiGroup() {
+    StepInjectionMetaEntry measuresGroup =
+      new StepInjectionMetaEntry( "MEASURES", ValueMetaInterface.TYPE_NONE, "Create Measure Annotations" );
+    // list of data for the specific annotation
+    List<StepInjectionMetaEntry> annotationValues = new ArrayList<>();
+
+    List<ModelProperty> modelProperties = new CreateMeasure().getModelProperties();
+    for ( ModelProperty prop : modelProperties ) {
+      annotationValues.add( new StepInjectionMetaEntry( "M_" + prop.name(), ValueMetaInterface.TYPE_STRING, "" ) );
+    }
+
+    StepInjectionMetaEntry ma =
+      new StepInjectionMetaEntry( "measuresContainer", ValueMetaInterface.TYPE_NONE, "" );
+
+    // add the real entries as details to this intermediate entry
+    ma.getDetails().addAll( annotationValues );
+
+    measuresGroup.getDetails().add( ma );
+    return measuresGroup;
+  }
+
+  protected StepInjectionMetaEntry createAttributesMdiGroup() {
+    StepInjectionMetaEntry attributesGroup =
+      new StepInjectionMetaEntry( "ATTRIBUTES", ValueMetaInterface.TYPE_NONE, "Create Measure Annotations" );
+    // list of data for the specific annotation
+    List<StepInjectionMetaEntry> attributeValues = new ArrayList<>();
+
+    List<ModelProperty> modelProperties = new CreateAttribute().getModelProperties();
+    attributeValues.addAll( modelProperties.stream()
+      .map( prop -> new StepInjectionMetaEntry( "A_" + prop.name(), ValueMetaInterface.TYPE_STRING, prop.name() ) )
+      .collect( Collectors.toList() ) );
+
+    StepInjectionMetaEntry mac =
+      new StepInjectionMetaEntry( "attributesContainer", ValueMetaInterface.TYPE_NONE, "" );
+
+    // add the real entries as details to this intermediate entry
+    mac.getDetails().addAll( attributeValues );
+
+    attributesGroup.getDetails().add( mac );
+    return attributesGroup;
   }
 
   @Override public void injectStepMetadataEntries( List<StepInjectionMetaEntry> metadata ) throws KettleException {
@@ -122,16 +125,45 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
         case "MODEL_ANNOTATION_GROUP_NAME":
           modelAnnotationGroup.setName( value );
           break;
-        case "CREATE_ATTRIBUTE":
-          List<StepInjectionMetaEntry> details = stepInjectionMetaEntry.getDetails().get( 0 ).getDetails();
-          for ( StepInjectionMetaEntry detail : details ) {
-            if ( "FIELD_NAME".equals( detail.getKey() ) ) {
-              CreateAttribute ca = new CreateAttribute();
-              ca.setName( detail.getValue().toString() );
-              ModelAnnotation<CreateAttribute> modelAnnotation = new ModelAnnotation<CreateAttribute>();
-              modelAnnotation.setName( ca.getName() );
-              modelAnnotation.setAnnotation( ca );
+        case "MEASURES":
+          List<StepInjectionMetaEntry> measuresGroup = stepInjectionMetaEntry.getDetails();
+          for ( StepInjectionMetaEntry injectedAnnotation : measuresGroup ) {
+            List<StepInjectionMetaEntry> details = injectedAnnotation.getDetails();
+            ModelAnnotation measureAnnotation = new ModelAnnotation<CreateMeasure>();
+
+            CreateMeasure cm = new CreateMeasure();
+            measureAnnotation.setAnnotation( cm );
+
+            for ( StepInjectionMetaEntry detail : details ) {
+              if ( "M_Field Name".equals( detail.getKey() ) ) {
+                String detailValue = detail.getValue().toString();
+                cm.setField( detailValue );
+              } else if ( "M_Aggregation Type".equals( detail.getKey() ) ) {
+                String detailValue = detail.getValue().toString();
+                cm.setAggregateType( AggregationType.valueOf( detailValue ) );
+              }
+
             }
+            modelAnnotationGroup.add( measureAnnotation );
+          }
+          break;
+
+        case "ATTRIBUTES":
+          List<StepInjectionMetaEntry> attributesGroup = stepInjectionMetaEntry.getDetails();
+          for ( StepInjectionMetaEntry injectedAnnotation : attributesGroup ) {
+            List<StepInjectionMetaEntry> details = injectedAnnotation.getDetails();
+            ModelAnnotation attributeAnnotation = new ModelAnnotation<CreateAttribute>();
+
+            CreateAttribute ca = new CreateAttribute();
+            attributeAnnotation.setAnnotation( ca );
+
+            for ( StepInjectionMetaEntry detail : details ) {
+              if ( "A_Field".equals( detail.getKey() ) ) {
+                String fieldName = detail.getValue().toString();
+                ca.setField( fieldName );
+              }
+            }
+            modelAnnotationGroup.add( attributeAnnotation );
           }
           break;
         default:
