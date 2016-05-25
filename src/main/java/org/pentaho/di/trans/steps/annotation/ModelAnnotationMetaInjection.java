@@ -31,7 +31,6 @@ import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.trans.step.StepInjectionMetaEntry;
 import org.pentaho.di.trans.step.StepMetaInjectionInterface;
-import org.pentaho.metadata.model.concept.types.AggregationType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,9 +75,9 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
     List<StepInjectionMetaEntry> annotationValues = new ArrayList<>();
 
     List<ModelProperty> modelProperties = new CreateMeasure().getModelProperties();
-    for ( ModelProperty prop : modelProperties ) {
-      annotationValues.add( new StepInjectionMetaEntry( "M_" + prop.name(), ValueMetaInterface.TYPE_STRING, "" ) );
-    }
+    annotationValues.addAll( modelProperties.stream()
+      .map( prop -> new StepInjectionMetaEntry( "M_" + prop.name(), ValueMetaInterface.TYPE_STRING, "" ) )
+      .collect( Collectors.toList() ) );
 
     StepInjectionMetaEntry ma =
       new StepInjectionMetaEntry( "measuresContainer", ValueMetaInterface.TYPE_NONE, "" );
@@ -129,20 +128,17 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
           List<StepInjectionMetaEntry> measuresGroup = stepInjectionMetaEntry.getDetails();
           for ( StepInjectionMetaEntry injectedAnnotation : measuresGroup ) {
             List<StepInjectionMetaEntry> details = injectedAnnotation.getDetails();
-            ModelAnnotation measureAnnotation = new ModelAnnotation<CreateMeasure>();
 
             CreateMeasure cm = new CreateMeasure();
+            ModelAnnotation measureAnnotation = new ModelAnnotation<CreateMeasure>();
             measureAnnotation.setAnnotation( cm );
 
             for ( StepInjectionMetaEntry detail : details ) {
-              if ( "M_Field Name".equals( detail.getKey() ) ) {
-                String detailValue = detail.getValue().toString();
-                cm.setField( detailValue );
-              } else if ( "M_Aggregation Type".equals( detail.getKey() ) ) {
-                String detailValue = detail.getValue().toString();
-                cm.setAggregateType( AggregationType.valueOf( detailValue ) );
+              try {
+                cm.setModelPropertyByName( detail.getKey().replace( "M_", "" ), detail.getValue() );
+              } catch ( Exception e ) {
+                e.printStackTrace();
               }
-
             }
             modelAnnotationGroup.add( measureAnnotation );
           }
@@ -152,15 +148,16 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
           List<StepInjectionMetaEntry> attributesGroup = stepInjectionMetaEntry.getDetails();
           for ( StepInjectionMetaEntry injectedAnnotation : attributesGroup ) {
             List<StepInjectionMetaEntry> details = injectedAnnotation.getDetails();
-            ModelAnnotation attributeAnnotation = new ModelAnnotation<CreateAttribute>();
 
+            ModelAnnotation attributeAnnotation = new ModelAnnotation<CreateAttribute>();
             CreateAttribute ca = new CreateAttribute();
             attributeAnnotation.setAnnotation( ca );
 
             for ( StepInjectionMetaEntry detail : details ) {
-              if ( "A_Field".equals( detail.getKey() ) ) {
-                String fieldName = detail.getValue().toString();
-                ca.setField( fieldName );
+              try {
+                ca.setModelPropertyByName( detail.getKey().replace( "A_", "" ), detail.getValue() );
+              } catch ( Exception e ) {
+                e.printStackTrace();
               }
             }
             modelAnnotationGroup.add( attributeAnnotation );
