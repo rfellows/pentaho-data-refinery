@@ -25,6 +25,10 @@ package org.pentaho.di.trans.steps.annotation;
 import org.apache.commons.lang.BooleanUtils;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.lang.StringUtils;
+import org.pentaho.agilebi.modeler.models.annotations.CreateAttribute;
+import org.pentaho.agilebi.modeler.models.annotations.CreateCalculatedMember;
+import org.pentaho.agilebi.modeler.models.annotations.CreateMeasure;
+import org.pentaho.agilebi.modeler.models.annotations.LinkDimension;
 import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotation;
 import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotationGroup;
 import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotationGroupXmlReader;
@@ -56,6 +60,7 @@ import org.w3c.dom.Node;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -463,6 +468,12 @@ public class ModelAnnotationMeta extends BaseStepMeta implements StepMetaInterfa
   }
 
   @Override public StepMetaInjectionInterface getStepMetaInjectionInterface() {
-    return new ModelAnnotationMetaInjection( this );
+    ModelAnnotationMetaInjection modelAnnotationMetaInjection = new ModelAnnotationMetaInjection( this );
+    modelAnnotationMetaInjection.setSupportedAnnotationTypes( Arrays.asList( new Class[] {
+      CreateAttribute.class,
+      CreateMeasure.class,
+      CreateCalculatedMember.class,
+      LinkDimension.class } ) );
+    return modelAnnotationMetaInjection;
   }
 }

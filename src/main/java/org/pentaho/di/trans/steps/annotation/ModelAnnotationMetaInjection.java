@@ -22,8 +22,8 @@
 
 package org.pentaho.di.trans.steps.annotation;
 
-import org.pentaho.agilebi.modeler.models.annotations.CreateAttribute;
-import org.pentaho.agilebi.modeler.models.annotations.CreateMeasure;
+import org.apache.commons.collections.CollectionUtils;
+import org.pentaho.agilebi.modeler.models.annotations.AnnotationType;
 import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotation;
 import org.pentaho.agilebi.modeler.models.annotations.ModelAnnotationGroup;
 import org.pentaho.agilebi.modeler.models.annotations.ModelProperty;
@@ -34,6 +34,8 @@ import org.pentaho.di.trans.step.StepMetaInjectionInterface;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 /**
@@ -41,6 +43,7 @@ import java.util.stream.Collectors;
  */
 public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface {
   private final ModelAnnotationMeta meta;
+  private List<Class<? extends AnnotationType>> supportedAnnotationTypes;
 
   public ModelAnnotationMetaInjection( ModelAnnotationMeta meta ) {
     this.meta = meta;
@@ -61,53 +64,19 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
       ValueMetaInterface.TYPE_STRING,
       "group name" ) );
 
-
-    entries.add( createMeasuresMdiGroup() );
-    entries.add( createAttributesMdiGroup() );
+    if ( CollectionUtils.isNotEmpty( supportedAnnotationTypes ) ) {
+      for ( Class<? extends AnnotationType> annotationType : supportedAnnotationTypes ) {
+        try {
+          AnnotationType instance = annotationType.newInstance();
+          entries.add( createMdiGroup( instance ) );
+        } catch ( InstantiationException | IllegalAccessException e ) {
+          // TODO: log it
+          e.printStackTrace();
+        }
+      }
+    }
 
     return entries;
-  }
-
-  protected StepInjectionMetaEntry createMeasuresMdiGroup() {
-    StepInjectionMetaEntry measuresGroup =
-      new StepInjectionMetaEntry( "MEASURES", ValueMetaInterface.TYPE_NONE, "Create Measure Annotations" );
-    // list of data for the specific annotation
-    List<StepInjectionMetaEntry> annotationValues = new ArrayList<>();
-
-    List<ModelProperty> modelProperties = new CreateMeasure().getModelProperties();
-    annotationValues.addAll( modelProperties.stream()
-      .map( prop -> new StepInjectionMetaEntry( "M_" + prop.name(), ValueMetaInterface.TYPE_STRING, "" ) )
-      .collect( Collectors.toList() ) );
-
-    StepInjectionMetaEntry ma =
-      new StepInjectionMetaEntry( "measuresContainer", ValueMetaInterface.TYPE_NONE, "" );
-
-    // add the real entries as details to this intermediate entry
-    ma.getDetails().addAll( annotationValues );
-
-    measuresGroup.getDetails().add( ma );
-    return measuresGroup;
-  }
-
-  protected StepInjectionMetaEntry createAttributesMdiGroup() {
-    StepInjectionMetaEntry attributesGroup =
-      new StepInjectionMetaEntry( "ATTRIBUTES", ValueMetaInterface.TYPE_NONE, "Create Measure Annotations" );
-    // list of data for the specific annotation
-    List<StepInjectionMetaEntry> attributeValues = new ArrayList<>();
-
-    List<ModelProperty> modelProperties = new CreateAttribute().getModelProperties();
-    attributeValues.addAll( modelProperties.stream()
-      .map( prop -> new StepInjectionMetaEntry( "A_" + prop.name(), ValueMetaInterface.TYPE_STRING, prop.name() ) )
-      .collect( Collectors.toList() ) );
-
-    StepInjectionMetaEntry mac =
-      new StepInjectionMetaEntry( "attributesContainer", ValueMetaInterface.TYPE_NONE, "" );
-
-    // add the real entries as details to this intermediate entry
-    mac.getDetails().addAll( attributeValues );
-
-    attributesGroup.getDetails().add( mac );
-    return attributesGroup;
   }
 
   @Override public void injectStepMetadataEntries( List<StepInjectionMetaEntry> metadata ) throws KettleException {
@@ -124,47 +93,15 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
         case "MODEL_ANNOTATION_GROUP_NAME":
           modelAnnotationGroup.setName( value );
           break;
-        case "MEASURES":
-          List<StepInjectionMetaEntry> measuresGroup = stepInjectionMetaEntry.getDetails();
-          for ( StepInjectionMetaEntry injectedAnnotation : measuresGroup ) {
-            List<StepInjectionMetaEntry> details = injectedAnnotation.getDetails();
-
-            CreateMeasure cm = new CreateMeasure();
-            ModelAnnotation measureAnnotation = new ModelAnnotation<CreateMeasure>();
-            measureAnnotation.setAnnotation( cm );
-
-            for ( StepInjectionMetaEntry detail : details ) {
-              try {
-                cm.setModelPropertyByName( detail.getKey().replace( "M_", "" ), detail.getValue() );
-              } catch ( Exception e ) {
-                e.printStackTrace();
-              }
-            }
-            modelAnnotationGroup.add( measureAnnotation );
-          }
-          break;
-
-        case "ATTRIBUTES":
-          List<StepInjectionMetaEntry> attributesGroup = stepInjectionMetaEntry.getDetails();
-          for ( StepInjectionMetaEntry injectedAnnotation : attributesGroup ) {
-            List<StepInjectionMetaEntry> details = injectedAnnotation.getDetails();
-
-            ModelAnnotation attributeAnnotation = new ModelAnnotation<CreateAttribute>();
-            CreateAttribute ca = new CreateAttribute();
-            attributeAnnotation.setAnnotation( ca );
-
-            for ( StepInjectionMetaEntry detail : details ) {
-              try {
-                ca.setModelPropertyByName( detail.getKey().replace( "A_", "" ), detail.getValue() );
-              } catch ( Exception e ) {
-                e.printStackTrace();
-              }
-            }
-            modelAnnotationGroup.add( attributeAnnotation );
-          }
-          break;
         default:
-          System.out.println( key + " = " + value );
+          supportedAnnotationTypes.stream().filter( annotationType -> key.equals( annotationType.getSimpleName() ) )
+            .forEach( annotationType -> {
+              try {
+                injectMdiGroup( stepInjectionMetaEntry, annotationType, modelAnnotationGroup );
+              } catch ( IllegalAccessException | InstantiationException e ) {
+                e.printStackTrace();
+              }
+            } );
       }
     } );
 
@@ -176,4 +113,100 @@ public class ModelAnnotationMetaInjection implements StepMetaInjectionInterface 
     // TODO
     return null;
   }
+
+  public void setSupportedAnnotationTypes( List<Class<? extends AnnotationType>> supportedAnnotationTypes ) {
+    this.supportedAnnotationTypes = supportedAnnotationTypes;
+  }
+
+  public List<Class<? extends AnnotationType>> getSupportedAnnotationTypes() {
+    return supportedAnnotationTypes;
+  }
+
+  protected StepInjectionMetaEntry createMdiGroup( AnnotationType type ) {
+    StepInjectionMetaEntry attributesGroup =
+      new StepInjectionMetaEntry( type.getClass().getSimpleName(), ValueMetaInterface.TYPE_NONE, type.getClass().getSimpleName() );
+
+    // list of data for the specific annotation
+    List<StepInjectionMetaEntry> values = new ArrayList<>();
+
+    List<ModelProperty> modelProperties = type.getModelProperties();
+    values.addAll( modelProperties.stream()
+      .map( prop -> new StepInjectionMetaEntry( type.getClass().getSimpleName() + "_" + prop.name(), ValueMetaInterface.TYPE_STRING, prop.name() ) )
+      .collect( Collectors.toList() ) );
+
+    StepInjectionMetaEntry mac =
+      new StepInjectionMetaEntry( type.getClass().getSimpleName() + "_container", ValueMetaInterface.TYPE_NONE, "" );
+
+    // add the real entries as details to this intermediate entry
+    mac.getDetails().addAll( values );
+
+    attributesGroup.getDetails().add( mac );
+    return attributesGroup;
+  }
+
+  /**
+   * Injects a stream annotation into the ModelAnnotationGroup provided based on the metadata given
+   * @param groupEntry               The parent grouping container that contains metadata for a particular type of annotation
+   * @param type                     The specific class of AnnotationType to inject
+   * @param modelAnnotationGroup     The ModelAnnotationGroup that should contain the instance of annotation requested once injected
+   * @throws IllegalAccessException
+   * @throws InstantiationException
+   */
+  protected void injectMdiGroup( StepInjectionMetaEntry groupEntry, Class<? extends AnnotationType> type, ModelAnnotationGroup modelAnnotationGroup )
+    throws IllegalAccessException, InstantiationException {
+
+    List<StepInjectionMetaEntry> attributesGroup = groupEntry.getDetails();
+    for ( StepInjectionMetaEntry injectedAnnotation : attributesGroup ) {
+      // we should be getting one `injectedAnnotation` per annotation of the specified type to inject
+      List<StepInjectionMetaEntry> details = injectedAnnotation.getDetails();
+
+      // TODO: try to find a logically equivalent annotation already in the group, use that if it exists
+
+      // create a new annotation to inject
+      ModelAnnotation modelAnnotation = findExistingAnnotation( injectedAnnotation, type, modelAnnotationGroup );
+      AnnotationType annotationType;
+      boolean isNew = false;
+      if ( modelAnnotation == null ) {
+        // it's a new one
+        modelAnnotation = new ModelAnnotation();
+        annotationType = type.newInstance();
+        modelAnnotation.setAnnotation( annotationType );
+        isNew = true;
+      } else {
+        annotationType = modelAnnotation.getAnnotation();
+      }
+
+      for ( StepInjectionMetaEntry detail : details ) {
+        try {
+          String keyNoPrefix = detail.getKey().replace( type.getSimpleName() + "_", "" );
+          annotationType.setModelPropertyByName( keyNoPrefix, detail.getValue() );
+        } catch ( Exception e ) {
+          // TODO: log it
+          e.printStackTrace();
+        }
+      }
+      if ( isNew ) {
+        modelAnnotationGroup.add( modelAnnotation );
+      }
+    }
+  }
+
+  protected ModelAnnotation findExistingAnnotation( StepInjectionMetaEntry annotationEntry, Class<? extends AnnotationType> type, ModelAnnotationGroup modelAnnotationGroup ) {
+
+    StepInjectionMetaEntry first = annotationEntry.getDetails().stream().filter( e -> {
+      String keyNoPrefix = e.getKey().replace( type.getSimpleName() + "_", "" );
+      return keyNoPrefix.equalsIgnoreCase( "attribute name" );
+    } ).findFirst().orElse( null );
+
+    String entryName = first == null ? null : first.getValue().toString();
+
+    List<ModelAnnotation> matches = modelAnnotationGroup.stream()
+      .filter( modelAnnotation ->
+        modelAnnotation.getAnnotation().getClass().equals( type )
+          && modelAnnotation.getAnnotation().getName().equalsIgnoreCase( entryName ) )
+      .collect( Collectors.toList() );
+
+    return CollectionUtils.isNotEmpty( matches ) ? matches.get( 0 ) : null;
+  }
+
 }
