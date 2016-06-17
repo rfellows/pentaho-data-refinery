@@ -62,6 +62,7 @@ public class SharedDimensionStep extends BaseStep implements StepInterface {
     meta.setSharedDimension( true );
     if ( StringUtils.isNotEmpty( meta.sharedDimensionName ) ) {
       meta.setModelAnnotationCategory( meta.sharedDimensionName );
+      meta.getModelAnnotations().setName( meta.sharedDimensionName );
     }
     if ( StringUtils.isNotEmpty( meta.dataProviderStep ) ) {
       meta.setTargetOutputStep( meta.dataProviderStep );
@@ -69,8 +70,11 @@ public class SharedDimensionStep extends BaseStep implements StepInterface {
 
     // TODO: handle the injected annotations, like in ModelAnnotationMeta
 
-    // TODO: maybe save to the metastore
-    // meta.saveToMetaStore(  );
+    try {
+      meta.saveToMetaStore( getMetaStore() );
+    } catch ( Exception e ) {
+      logError( e.getMessage(), e );
+    }
 
     return super.init( smi, sdi );
   }
