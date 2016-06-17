@@ -22,6 +22,7 @@
 
 package org.pentaho.di.trans.steps.annotation;
 
+import org.apache.commons.lang.StringUtils;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
@@ -53,5 +54,24 @@ public class SharedDimensionStep extends BaseStep implements StepInterface {
     }
     putRow( getInputRowMeta(), row );
     return true;
+  }
+
+  @Override public boolean init( StepMetaInterface smi, StepDataInterface sdi ) {
+
+    SharedDimensionMeta meta = (SharedDimensionMeta) smi;
+    meta.setSharedDimension( true );
+    if ( StringUtils.isNotEmpty( meta.sharedDimensionName ) ) {
+      meta.setModelAnnotationCategory( meta.sharedDimensionName );
+    }
+    if ( StringUtils.isNotEmpty( meta.dataProviderStep ) ) {
+      meta.setTargetOutputStep( meta.dataProviderStep );
+    }
+
+    // TODO: handle the injected annotations, like in ModelAnnotationMeta
+
+    // TODO: maybe save to the metastore
+    // meta.saveToMetaStore(  );
+
+    return super.init( smi, sdi );
   }
 }

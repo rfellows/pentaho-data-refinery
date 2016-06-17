@@ -207,6 +207,10 @@ public class ModelAnnotationStep extends BaseStep implements StepInterface {
   @Override public boolean init( StepMetaInterface smi, StepDataInterface sdi ) {
     ModelAnnotationMeta meta = (ModelAnnotationMeta) smi;
 
+    if ( StringUtils.isNotEmpty( meta.sharedAnnotationGroup ) ) {
+      meta.setModelAnnotationCategory( meta.sharedAnnotationGroup );
+    }
+
     ModelAnnotationGroup modelAnnotations = meta.getModelAnnotations();
 
     // if a shared group is referenced, assume we should not be injecting any annotations. they will come from there

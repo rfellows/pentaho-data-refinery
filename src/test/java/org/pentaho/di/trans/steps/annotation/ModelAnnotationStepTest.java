@@ -522,7 +522,7 @@ public class ModelAnnotationStepTest {
     ModelAnnotationStep spyStep = spy( modelAnnotation );
 
     ModelAnnotationMeta meta = new ModelAnnotationMeta();
-    meta.setModelAnnotationCategory( "This is a shared group" );
+    meta.sharedAnnotationGroup = "This is a shared group";
 
     // if there is a shared annotation group present, it is assumed that tat already exists and is what is being requested
     // don't inject any annotations
@@ -530,7 +530,7 @@ public class ModelAnnotationStepTest {
 
     verify( spyStep, never() ).addInjectedAnnotations( any(), any() );
     assertTrue( status );
-
+    assertEquals( meta.sharedAnnotationGroup, meta.getModelAnnotationCategory() );
   }
 
   @Test
